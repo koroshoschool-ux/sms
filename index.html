@@ -240,15 +240,7 @@ select.form-input { cursor: pointer; }
       </div>
       <button type="submit" class="btn-primary w-full mt-4 flex items-center justify-center gap-2"><i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal</button>
     </form>
-    <div class="mt-8 pt-6 border-t border-white/10">
-      <p class="text-white/40 text-xs uppercase tracking-wider mb-3 text-center">Demo Accounts (password: 1234)</p>
-      <div class="grid grid-cols-2 gap-2 text-xs">
-        <button type="button" onclick="quickLogin('admin@korosho.ac.tz','1234')" class="text-white/70 hover:text-white border border-white/10 hover:border-emerald-400/40 rounded-lg py-2 px-3 transition-all"><i class="fa-solid fa-user-shield text-emerald-400 mr-1"></i> Admin</button>
-        <button type="button" onclick="quickLogin('headteacher@korosho.ac.tz','1234')" class="text-white/70 hover:text-white border border-white/10 hover:border-emerald-400/40 rounded-lg py-2 px-3 transition-all"><i class="fa-solid fa-user-tie text-amber-400 mr-1"></i> Headteacher</button>
-        <button type="button" onclick="quickLogin('academic@korosho.ac.tz','1234')" class="text-white/70 hover:text-white border border-white/10 hover:border-emerald-400/40 rounded-lg py-2 px-3 transition-all"><i class="fa-solid fa-chalkboard-user text-blue-400 mr-1"></i> Academic</button>
-        <button type="button" onclick="quickLogin('teacher@korosho.ac.tz','1234')" class="text-white/70 hover:text-white border border-white/10 hover:border-emerald-400/40 rounded-lg py-2 px-3 transition-all"><i class="fa-solid fa-person-chalkboard text-purple-400 mr-1"></i> Teacher</button>
-      </div>
-    </div>
+    
   </div>
 </div>
 
@@ -417,12 +409,6 @@ async function checkSession() {
 
 // Run session check when script loads
 checkSession();
-
-function quickLogin(u, p) {
-  document.getElementById('loginUsername').value = u;
-  document.getElementById('loginPassword').value = p;
-  document.getElementById('loginForm').dispatchEvent(new Event('submit'));
-}
 
 async function logout() {
   await supabase.auth.signOut();
