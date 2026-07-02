@@ -547,13 +547,14 @@ async function renderTeachers() {
       </div>
       <div class="overflow-x-auto">
         <table class="data-table">
-          <thead><tr><th>Teacher</th><th>Role</th><th>Phone</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Teacher</th><th>Email</th><th>Role</th><th>Phone</th><th>Actions</th></tr></thead>
           <tbody>
             ${teachers.map(t => {
               const initials = t.full_name.split(' ').map(n=>n[0]).join('').slice(0,2);
               const roleColors = { admin: 'purple', headteacher: 'amber', academic: 'blue', teacher: 'green' };
               return `<tr>
                 <td><div class="flex items-center gap-3"><div class="avatar" style="width:36px;height:36px;font-size:12px;background:linear-gradient(135deg,#047857,#10B981);">${initials}</div><div class="font-semibold text-slate-900">${t.full_name}</div></div></td>
+                <td><span class="text-xs text-slate-600">${t.email || 'N/A'}</span></td>
                 <td><span class="badge badge-${roleColors[t.role]} capitalize">${t.role}</span></td>
                 <td><span class="text-xs text-slate-600">${t.phone || 'N/A'}</span></td>
                 <td><button class="icon-btn" style="width:32px;height:32px;" onclick="deleteTeacher('${t.id}')"><i class="fa-solid fa-trash text-xs text-red-500"></i></button></td>
