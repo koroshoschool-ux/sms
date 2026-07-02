@@ -663,7 +663,11 @@ async function renderTeachers() {
             <thead><tr><th>Teacher</th><th>Email</th><th>Role</th><th>Phone</th><th>Actions</th></tr></thead>
             <tbody>
               ${state.teachers.map(t => {
-                const initials = t.full_name.split(' ').map(n=>n[0]).join('').slice(0,2);
+                const initials = (t.full_name || "Unknown")
+  .split(" ")
+  .map(n => n[0])
+  .join("")
+  .slice(0,2);
                 const roleColors = { admin: 'purple', headteacher: 'amber', academic: 'blue', teacher: 'green' };
                 return `<tr>
                   <td><div class="flex items-center gap-3"><div class="avatar" style="width:36px;height:36px;font-size:12px;background:linear-gradient(135deg,#047857,#10B981);">${initials}</div><div class="font-semibold text-slate-900">${t.full_name}</div></div></td>
@@ -709,7 +713,11 @@ function renderStudents() {
           <thead><tr><th>Student</th><th>Class</th><th>Gender</th><th>Age</th><th>Parent</th><th>Contact</th><th>Actions</th></tr></thead>
           <tbody>
             ${state.students.map(s => {
-              const initials = s.name.split(' ').map(n=>n[0]).join('').slice(0,2);
+              const initials = (s.name || "Unknown")
+  .split(" ")
+  .map(n => n[0])
+  .join("")
+  .slice(0,2);
               return `<tr>
                 <td><div class="flex items-center gap-3"><div class="avatar" style="width:36px;height:36px;font-size:12px;background:linear-gradient(135deg,#D97706,#F59E0B);">${initials}</div><div class="font-semibold text-slate-900">${s.name}</div></div></td>
                 <td><span class="badge badge-blue">${s.classes?.name || 'N/A'}</span></td>
@@ -742,7 +750,13 @@ function renderClasses() {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 fade-up-1">
       ${state.classes.map((c, i) => {
         const teacher = c.profiles;
-        const initials = teacher ? teacher.full_name.split(' ').map(n=>n[0]).join('').slice(0,2) : '?';
+        const initials = teacher
+  ? (teacher.full_name || "Unknown")
+      .split(" ")
+      .map(n => n[0])
+      .join("")
+      .slice(0,2)
+  : "?";
         return `<div class="card fade-up-${i+1}" style="padding:0;overflow:hidden;">
           <div class="p-5" style="background: linear-gradient(135deg, ${['#047857','#D97706','#0EA5E9','#9333EA'][i%4]}, ${['#10B981','#F59E0B','#0284C7','#A855F7'][i%4]});">
             <div class="flex items-center justify-between text-white">
