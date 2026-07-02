@@ -400,21 +400,23 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 async function checkSession() {
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', session.user.id)
       .single();
-    
+
     if (profile) {
       state.currentUser = { username: session.user.email, name: profile.full_name, role: profile.role };
+      saveState();
       document.getElementById('loginPage').classList.add('hidden-page');
       document.getElementById('appShell').classList.remove('hidden-page');
       initApp();
+    } else if (error) {
+      console.warn('Profile fetch failed:', error.message);
     }
   }
 }
-
 // Run session check when script loads
 checkSession();
 
@@ -423,31 +425,15 @@ function quickLogin(u, p) {
   document.getElementById('loginPassword').value = p;
   document.getElementById('loginForm').dispatchEvent(new Event('submit'));
 }
-
-document.getElementById('loginForm').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const u = document.getElementById('loginUsername').value.trim();
-  const p = document.getElementById('loginPassword').value;
-  const acc = ACCOUNTS[u];
-  if (!acc || acc.password !== p) { showToast('Invalid username or password', 'error'); return; }
-  state.currentUser = { username: u, name: acc.name, role: acc.role };
-  saveState();
-  document.getElementById('loginPage').classList.add('hidden-page');
-  document.getElementById('appShell').classList.remove('hidden-page');
-  initApp();
-  showToast(`Welcome back, ${acc.name.split(' ')[0]}!`, 'success');
-});
-
 async function logout() {
   await supabase.auth.signOut();
-  state.currentUser = null; 
+  state.currentUser = null;
   saveState();
   document.getElementById('appShell').classList.add('hidden-page');
   document.getElementById('loginPage').classList.remove('hidden-page');
   document.getElementById('loginForm').reset();
   showToast('Signed out successfully', 'info');
-  }
-
+                                                        }
 /* ===================== NAVIGATION ===================== */
 const NAV_MENUS = {
   admin: [
@@ -529,7 +515,7 @@ function renderPage() {
   const page = state.currentPage, host = document.getElementById('pageContent');
   host.innerHTML = '';
   if (page === 'dashboard') host.innerHTML = renderDashboard();
-  else if (page === 'teachers') host.innerHTML = renderTeachers();
+  else if (page === 'teachers') { renderTeachers(); return; }
   else if (page === 'students') host.innerHTML = renderStudents();
   else if (page === 'classes') host.innerHTML = renderClasses();
   else if (page === 'subjects') host.innerHTML = renderSubjects();
@@ -612,12 +598,10 @@ function renderDashboard() {
 }
 
 /* ===================== TEACHERS ===================== */
-
-  async function renderTeachers() {
+async function renderTeachers() {
   const host = document.getElementById('pageContent');
   host.innerHTML = `<div class="card fade-up-1"><div class="section-title"><span><i class="fa-solid fa-spinner fa-spin text-emerald-600 mr-2"></i> Loading Teachers...</span></div></div>`;
 
-  // FETCH FROM SUPABASE
   const { data: teachers, error } = await supabase
     .from('profiles')
     .select('*')
@@ -628,7 +612,11 @@ function renderDashboard() {
     return;
   }
 
-  // RENDER THE DATA
+  if (!teachers || teachers.length === 0) {
+    host.innerHTML = `<div class="card"><p class="text-slate-500 text-center py-8">No teachers found.</p></div>`;
+    return;
+  }
+
   host.innerHTML = `
     <div class="card fade-up-1">
       <div class="section-title">
@@ -640,11 +628,11 @@ function renderDashboard() {
           <thead><tr><th>Teacher</th><th>Role</th><th>Phone</th><th>Actions</th></tr></thead>
           <tbody>
             ${teachers.map(t => {
-              const initials = t.full_name.split(' ').map(n=>n[0]).join('').slice(0,2);
+              const initials = (t.full_name || '?').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
               const roleColors = { admin: 'purple', headteacher: 'amber', academic: 'blue', teacher: 'green' };
               return `<tr>
                 <td><div class="flex items-center gap-3"><div class="avatar" style="width:36px;height:36px;font-size:12px;background:linear-gradient(135deg,#047857,#10B981);">${initials}</div><div class="font-semibold text-slate-900">${t.full_name}</div></div></td>
-                <td><span class="badge badge-${roleColors[t.role]} capitalize">${t.role}</span></td>
+                <td><span class="badge badge-${roleColors[t.role] || 'gray'} capitalize">${t.role}</span></td>
                 <td><span class="text-xs text-slate-600">${t.phone || 'N/A'}</span></td>
                 <td>
                   <button class="icon-btn" style="width:32px;height:32px;" onclick="deleteTeacher('${t.id}')"><i class="fa-solid fa-trash text-xs text-red-500"></i></button>
@@ -656,14 +644,16 @@ function renderDashboard() {
       </div>
     </div>
   `;
-  }
-  
-function deleteTeacher(id) {
-  openConfirmModal('Delete Teacher', 'Are you sure you want to remove this teacher?', () => {
-    state.teachers = state.teachers.filter(t => t.id !== id);
-    saveState(); renderPage(); showToast('Teacher removed successfully', 'success');
-  });
 }
+  
+async function deleteTeacher(id) {
+  openConfirmModal('Delete Teacher', 'Are you sure you want to remove this teacher?', async () => {
+    const { error } = await supabase.from('profiles').delete().eq('id', id);
+    if (error) { showToast('Delete failed: ' + error.message, 'error'); return; }
+    showToast('Teacher removed successfully', 'success');
+    renderTeachers(); // refresh from Supabase
+  });
+  }
 
 /* ===================== STUDENTS ===================== */
 function renderStudents() {
@@ -1142,11 +1132,47 @@ function openConfirmModal(title, message, onConfirm) {
 }
 
 /* ===================== SAVE FUNCTIONS ===================== */
-function saveTeacher() {
+async function saveTeacher() {
   const name = document.getElementById('t-name').value.trim();
   if (!name) return showToast('Please enter teacher name', 'error');
-  state.teachers.push({ id: Date.now(), name, email: document.getElementById('t-email').value, role: document.getElementById('t-role').value, subjects: document.getElementById('t-subjects').value.split(',').map(s=>s.trim()).filter(Boolean), classTeacher: document.getElementById('t-class').value || '-', phone: document.getElementById('t-phone').value, status: 'active' });
-  saveState(); closeModal(); renderPage(); showToast(`Teacher ${name} added successfully`, 'success');
+  const email = document.getElementById('t-email').value.trim();
+  const role = document.getElementById('t-role').value;
+
+  // Create auth user (optional — only if you want them to be able to log in)
+  // If you don't want auto-signup, skip this and just insert the profile row.
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email,
+    password: 'KOROSHO2026',
+    email_confirm: true,
+    user_metadata: { full_name: name, role }
+  });
+
+  // NOTE: createUser with admin privileges only works with the SERVICE ROLE key,
+  // not the anon key. If you don't have that, you must either:
+  //  (a) invite the teacher via email, or
+  //  (b) insert only into profiles and let an admin create their auth user separately.
+
+  if (authError) {
+    showToast('Could not create auth user: ' + authError.message, 'error');
+    return;
+  }
+
+  const { error: profileError } = await supabase.from('profiles').insert({
+    id: authData.user.id,
+    full_name: name,
+    email,
+    role,
+    phone: document.getElementById('t-phone').value
+  });
+
+  if (profileError) {
+    showToast('Profile insert failed: ' + profileError.message, 'error');
+    return;
+  }
+
+  closeModal();
+  showToast(`Teacher ${name} added successfully`, 'success');
+  renderTeachers();
 }
 function saveStudent() {
   const name = document.getElementById('s-name').value.trim();
