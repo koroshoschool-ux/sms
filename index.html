@@ -175,22 +175,13 @@ select.form-input { cursor: pointer; }
 .notice-card:hover { transform: translateX(2px); box-shadow: 0 8px 20px -8px rgba(0,0,0,0.08); }
 .notice-card.high { border-left-color: var(--danger); }
 
-/* ===== TOGGLE ===== */
-.toggle { width: 44px; height: 24px; background: #CBD5E1; border-radius: 12px; position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0; border: none; }
-.toggle.active { background: var(--primary); }
-.toggle::after { content: ''; position: absolute; width: 20px; height: 20px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-.toggle.active::after { transform: translateX(20px); }
-
 /* ===== ANIMATIONS ===== */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 .fade-up-1 { animation: fadeUp 0.5s ease-out 0.05s both; } .fade-up-2 { animation: fadeUp 0.5s ease-out 0.1s both; }
 .fade-up-3 { animation: fadeUp 0.5s ease-out 0.15s both; } .fade-up-4 { animation: fadeUp 0.5s ease-out 0.2s both; }
 .fade-up-5 { animation: fadeUp 0.5s ease-out 0.25s both; } .fade-up-6 { animation: fadeUp 0.5s ease-out 0.3s both; }
 
-/* ===== BAR CHART ===== */
-.bar { background: linear-gradient(180deg, var(--primary), var(--primary-light)); border-radius: 6px 6px 0 0; transition: all 0.3s; min-height: 4px; }
-.bar:hover { filter: brightness(1.12); transform: scaleY(1.03); transform-origin: bottom; }
-
+/* ===== MISC ===== */
 ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
 .hidden-page { display: none !important; }
@@ -209,8 +200,6 @@ select.form-input { cursor: pointer; }
 .q-type-card:hover { border-color: var(--primary-light); background: #ECFDF5; }
 .q-type-card.selected { border-color: var(--primary); border-style: solid; background: #ECFDF5; }
 .question-block { background: #F8FAFC; border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-.file-drop { border: 2px dashed var(--border); border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; color: var(--muted); }
-.file-drop:hover { border-color: var(--primary-light); background: #ECFDF5; color: var(--primary); }
 .progress-track { background: #E2E8F0; border-radius: 10px; height: 8px; overflow: hidden; }
 .progress-fill { background: linear-gradient(90deg, var(--primary), var(--primary-light)); height: 100%; border-radius: 10px; transition: width 0.4s; }
 </style>
@@ -239,7 +228,7 @@ select.form-input { cursor: pointer; }
         <div class="input-wrap"><i class="fa-solid fa-lock"></i><input type="password" id="loginPassword" class="glass-input" placeholder="Enter your password" required></div>
       </div>
       
-      <!-- FIXED: The missing error box that caused the crash -->
+      <!-- THE FIX: Missing Error Box -->
       <div id="loginErrorBox" class="hidden bg-red-500/20 border border-red-500/40 text-red-200 text-sm rounded-xl px-4 py-3 text-center"></div>
       
       <button type="submit" class="btn-primary w-full mt-4 flex items-center justify-center gap-2"><i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal</button>
@@ -307,7 +296,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   const submitBtn = e.target.querySelector('button[type="submit"]');
   const errorBox = document.getElementById('loginErrorBox');
   
-  // Safety net so it never crashes here again
+  // Safety net
   if (errorBox) {
     errorBox.classList.add('hidden');
     errorBox.innerText = '';
@@ -358,7 +347,6 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   } catch (err) {
     console.error("LOGIN FAILED:", err);
     
-    // Show the exact error on the screen
     if (errorBox) {
       errorBox.innerText = "Login Failed: " + err.message;
       errorBox.classList.remove('hidden');
@@ -367,7 +355,6 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     submitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal';
     submitBtn.disabled = false;
     
-    // Sign out the failed session
     await supabase.auth.signOut();
   }
 });
@@ -508,11 +495,15 @@ function renderPage() {
   else if (page === 'reports') host.innerHTML = renderReports();
 }
 
-/* ===================== DASHBOARD ===================== */
+/* ===================== DASHBOARD (ROLE-BASED) ===================== */
 function renderDashboard() {
   const u = state.currentUser, firstName = u.name.split(' ')[0], greet = getGreeting();
   const roleLabels = { admin: 'Administrator', headteacher: 'Headteacher', academic: 'Academic Master', teacher: 'Teacher' };
+  
   let stats = [];
+  let quickLinks = [];
+  
+  // CUSTOMIZE DASHBOARD BASED ON ROLE
   if (u.role === 'admin') {
     stats = [
       { label: 'Total Teachers', value: state.teachers.length, icon: 'fa-chalkboard-user', color: 'emerald' },
@@ -520,15 +511,70 @@ function renderDashboard() {
       { label: 'Active Classes', value: state.classes.length, icon: 'fa-school', color: 'amber' },
       { label: 'Subjects Offered', value: state.subjects.length, icon: 'fa-book', color: 'purple' }
     ];
-  } else {
+    quickLinks = [
+      { page: 'teachers', icon: 'fa-chalkboard-user', color: 'emerald', label: 'Manage Teachers' },
+      { page: 'students', icon: 'fa-user-graduate', color: 'blue', label: 'Manage Students' },
+      { page: 'classes', icon: 'fa-school', color: 'amber', label: 'View Classes' },
+      { page: 'exam-config', icon: 'fa-sliders', color: 'purple', label: 'Exam Config' }
+    ];
+  } else if (u.role === 'headteacher') {
+    stats = [
+      { label: 'Total Staff', value: state.teachers.length, icon: 'fa-chalkboard-user', color: 'emerald' },
+      { label: 'Total Students', value: state.students.length, icon: 'fa-user-graduate', color: 'blue' },
+      { label: 'Active Classes', value: state.classes.length, icon: 'fa-school', color: 'amber' },
+      { label: 'High Priority Notices', value: state.notices.filter(n => n.priority === 'high').length, icon: 'fa-bullhorn', color: 'purple' }
+    ];
+    quickLinks = [
+      { page: 'timetable', icon: 'fa-calendar-days', color: 'emerald', label: 'School Timetable' },
+      { page: 'notices', icon: 'fa-bullhorn', color: 'amber', label: 'Post Notice' },
+      { page: 'results', icon: 'fa-chart-line', color: 'blue', label: 'View Results' },
+      { page: 'reports', icon: 'fa-file-lines', color: 'purple', label: 'School Reports' }
+    ];
+  } else if (u.role === 'academic') {
+    stats = [
+      { label: 'Active Classes', value: state.classes.length, icon: 'fa-school', color: 'amber' },
+      { label: 'Subjects Offered', value: state.subjects.length, icon: 'fa-book', color: 'purple' },
+      { label: 'Total Students', value: state.students.length, icon: 'fa-user-graduate', color: 'blue' },
+      { label: 'Teaching Staff', value: state.teachers.length, icon: 'fa-chalkboard-user', color: 'emerald' }
+    ];
+    quickLinks = [
+      { page: 'timetable', icon: 'fa-calendar-days', color: 'emerald', label: 'Manage Timetable' },
+      { page: 'exam-set', icon: 'fa-pen-ruler', color: 'amber', label: 'Set Examination' },
+      { page: 'results', icon: 'fa-chart-line', color: 'blue', label: 'Check Results' },
+      { page: 'reports', icon: 'fa-file-lines', color: 'purple', label: 'Academic Reports' }
+    ];
+  } else if (u.role === 'teacher') {
     stats = [
       { label: 'My Subjects', value: state.subjects.filter(s => s.profiles && s.profiles.full_name === u.name).length, icon: 'fa-book', color: 'emerald' },
+      { label: 'School Notices', value: state.notices.length, icon: 'fa-bullhorn', color: 'amber' },
+      { label: 'Total Students', value: state.students.length, icon: 'fa-user-graduate', color: 'blue' },
+      { label: 'Active Classes', value: state.classes.length, icon: 'fa-school', color: 'purple' }
+    ];
+    quickLinks = [
+      { page: 'timetable', icon: 'fa-calendar-days', color: 'emerald', label: 'My Timetable' },
+      { page: 'exam-set', icon: 'fa-pen-ruler', color: 'amber', label: 'Set Examination' },
+      { page: 'results', icon: 'fa-chart-line', color: 'blue', label: 'Enter Results' },
+      { page: 'reports', icon: 'fa-file-lines', color: 'purple', label: 'My Reports' }
+    ];
+  } else {
+    // Fallback if role is missing
+    stats = [
       { label: 'Notices', value: state.notices.length, icon: 'fa-bullhorn', color: 'amber' },
-      { label: 'Students', value: state.students.length, icon: 'fa-user-graduate', color: 'blue' },
-      { label: 'Classes', value: state.classes.length, icon: 'fa-school', color: 'purple' }
+      { label: 'Students', value: state.students.length, icon: 'fa-user-graduate', color: 'blue' }
+    ];
+    quickLinks = [
+      { page: 'timetable', icon: 'fa-calendar-days', color: 'emerald', label: 'View Timetable' },
+      { page: 'notices', icon: 'fa-bullhorn', color: 'amber', label: 'View Notices' }
     ];
   }
-  const colorMap = { emerald: { bg: '#ECFDF5', fg: '#047857' }, blue: { bg: '#DBEAFE', fg: '#1E40AF' }, amber: { bg: '#FEF3C7', fg: '#92400E' }, purple: { bg: '#F3E8FF', fg: '#6B21A8' } };
+
+  const colorMap = { 
+    emerald: { bg: '#ECFDF5', fg: '#047857', br: 'emerald' }, 
+    blue: { bg: '#DBEAFE', fg: '#1E40AF', br: 'blue' }, 
+    amber: { bg: '#FEF3C7', fg: '#92400E', br: 'amber' }, 
+    purple: { bg: '#F3E8FF', fg: '#6B21A8', br: 'purple' } 
+  };
+  
   const statsHtml = stats.map((s, i) => {
     const c = colorMap[s.color];
     return `<div class="stat-card fade-up-${i+1}">
@@ -539,6 +585,7 @@ function renderDashboard() {
       <div class="text-xs text-slate-500 flex items-center gap-1.5"><i class="fa-solid fa-circle text-emerald-600 text-[6px]"></i> Live Data</div>
     </div>`;
   }).join('');
+  
   const recentNotices = state.notices.slice(0, 3).map(n => `
     <div class="notice-card ${n.priority==='high'?'high':''} fade-up-4">
       <div class="flex items-start justify-between gap-3 mb-1">
@@ -549,29 +596,33 @@ function renderDashboard() {
       <div class="flex items-center justify-between mt-2 text-[11px] text-slate-400"><span><i class="fa-solid fa-user mr-1"></i> ${n.profiles?.full_name || 'Unknown'}</span><span><i class="fa-solid fa-calendar mr-1"></i> ${new Date(n.created_at).toLocaleDateString()}</span></div>
     </div>
   `).join('');
+  
+  const quickLinksHtml = quickLinks.map((q, i) => {
+    const c = colorMap[q.color];
+    return `<button onclick="navigateTo('${q.page}')" class="p-4 rounded-xl border border-slate-200 hover:border-${c.br}-400 hover:bg-${c.br}-50 transition-all text-center">
+      <i class="fa-solid ${q.icon} mb-2" style="color:${c.fg};"></i>
+      <div class="font-semibold text-sm">${q.label}</div>
+    </button>`;
+  }).join('');
+
   return `
     <div class="rounded-2xl p-6 mb-6 fade-up-1" style="background: linear-gradient(135deg, #065F46 0%, #047857 50%, #0F172A 100%); position: relative; overflow: hidden;">
       <div style="position:absolute;top:-50px;right:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,#F59E0B,transparent 70%);opacity:0.2;"></div>
       <div class="relative">
         <p class="text-emerald-100 text-sm font-medium">${formatDate()}</p>
         <h1 class="text-white text-3xl sm:text-4xl font-bold mt-1">${greet}, <span style="color:#FCD34D;">${firstName}</span>!</h1>
-        <p class="text-emerald-100/80 text-sm mt-2 max-w-xl">Welcome back to your ${roleLabels[u.role]} portal. Here's what's happening at Korosho English Medium School today.</p>
+        <p class="text-emerald-100/80 text-sm mt-2 max-w-xl">Welcome back to your ${roleLabels[u.role] || 'User'} portal. Here's what's happening at Korosho English Medium School today.</p>
       </div>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">${statsHtml}</div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="card fade-up-3">
         <div class="section-title"><span><i class="fa-solid fa-bullhorn text-amber-500 mr-2"></i> Recent Notices</span></div>
-        <div class="space-y-3">${recentNotices}</div>
+        <div class="space-y-3">${recentNotices || '<p class="text-slate-500 text-sm">No notices yet.</p>'}</div>
       </div>
       <div class="card fade-up-4">
-        <div class="section-title"><span><i class="fa-solid fa-clock text-emerald-600 mr-2"></i> Quick Links</span></div>
-        <div class="grid grid-cols-2 gap-3">
-          <button onclick="navigateTo('timetable')" class="p-4 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all text-left"><i class="fa-solid fa-calendar-days text-emerald-600 mb-2"></i><div class="font-semibold text-sm">View Timetable</div></button>
-          <button onclick="navigateTo('notices')" class="p-4 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-left"><i class="fa-solid fa-bullhorn text-amber-600 mb-2"></i><div class="font-semibold text-sm">Post Notice</div></button>
-          <button onclick="navigateTo('results')" class="p-4 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-left"><i class="fa-solid fa-chart-line text-blue-600 mb-2"></i><div class="font-semibold text-sm">Check Results</div></button>
-          <button onclick="navigateTo('reports')" class="p-4 rounded-xl border border-slate-200 hover:border-purple-400 hover:bg-purple-50 transition-all text-left"><i class="fa-solid fa-file-lines text-purple-600 mb-2"></i><div class="font-semibold text-sm">Generate Reports</div></button>
-        </div>
+        <div class="section-title"><span><i class="fa-solid fa-bolt text-emerald-600 mr-2"></i> Quick Actions</span></div>
+        <div class="grid grid-cols-2 gap-3">${quickLinksHtml}</div>
       </div>
     </div>
   `;
@@ -594,7 +645,7 @@ async function renderTeachers() {
       </div>
       <div class="overflow-x-auto">
         <table class="data-table">
-                    <thead><tr><th>Teacher</th><th>Email</th><th>Role</th><th>Phone</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Teacher</th><th>Email</th><th>Role</th><th>Phone</th><th>Actions</th></tr></thead>
           <tbody>
             ${teachers.map(t => {
               const initials = t.full_name.split(' ').map(n=>n[0]).join('').slice(0,2);
@@ -1082,4 +1133,4 @@ function showToast(message, type = 'success') {
 checkSession();
 </script>
 </body>
-</html>
+  </html>
