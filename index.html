@@ -234,12 +234,12 @@ select.form-input { cursor: pointer; }
         <label class="text-white/70 text-xs font-semibold uppercase tracking-wider mb-2 block">Email</label>
         <div class="input-wrap"><i class="fa-solid fa-envelope"></i><input type="email" id="loginUsername" class="glass-input" placeholder="Enter your email" required></div>
       </div>
-            <div>
+      <div>
         <label class="text-white/70 text-xs font-semibold uppercase tracking-wider mb-2 block">Password</label>
         <div class="input-wrap"><i class="fa-solid fa-lock"></i><input type="password" id="loginPassword" class="glass-input" placeholder="Enter your password" required></div>
       </div>
       
-      <!-- 👉 PASTED HERE: The missing error box -->
+      <!-- FIXED: The missing error box that caused the crash -->
       <div id="loginErrorBox" class="hidden bg-red-500/20 border border-red-500/40 text-red-200 text-sm rounded-xl px-4 py-3 text-center"></div>
       
       <button type="submit" class="btn-primary w-full mt-4 flex items-center justify-center gap-2"><i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal</button>
@@ -306,8 +306,12 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   
   const submitBtn = e.target.querySelector('button[type="submit"]');
   const errorBox = document.getElementById('loginErrorBox');
-  errorBox.classList.add('hidden'); // Hide old errors
-  errorBox.innerText = '';
+  
+  // Safety net so it never crashes here again
+  if (errorBox) {
+    errorBox.classList.add('hidden');
+    errorBox.innerText = '';
+  }
 
   submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Signing In...';
   submitBtn.disabled = true;
@@ -355,8 +359,10 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     console.error("LOGIN FAILED:", err);
     
     // Show the exact error on the screen
-    errorBox.innerText = "Login Failed: " + err.message;
-    errorBox.classList.remove('hidden');
+    if (errorBox) {
+      errorBox.innerText = "Login Failed: " + err.message;
+      errorBox.classList.remove('hidden');
+    }
     
     submitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal';
     submitBtn.disabled = false;
