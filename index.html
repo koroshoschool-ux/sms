@@ -228,7 +228,7 @@ select.form-input { cursor: pointer; }
         <div class="input-wrap"><i class="fa-solid fa-lock"></i><input type="password" id="loginPassword" class="glass-input" placeholder="Enter your password" required></div>
       </div>
       
-      <!-- THE FIX: Missing Error Box -->
+      <!-- FIXED: Missing Error Box -->
       <div id="loginErrorBox" class="hidden bg-red-500/20 border border-red-500/40 text-red-200 text-sm rounded-xl px-4 py-3 text-center"></div>
       
       <button type="submit" class="btn-primary w-full mt-4 flex items-center justify-center gap-2"><i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal</button>
@@ -296,7 +296,6 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   const submitBtn = e.target.querySelector('button[type="submit"]');
   const errorBox = document.getElementById('loginErrorBox');
   
-  // Safety net
   if (errorBox) {
     errorBox.classList.add('hidden');
     errorBox.innerText = '';
@@ -306,18 +305,15 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   submitBtn.disabled = true;
 
   try {
-    // 1. Sign in with Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) throw new Error(authError.message);
 
-    // 2. Fetch the user's profile
     let { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', authData.user.id)
       .single();
 
-    // 3. AUTOFIX: If profile doesn't exist, create it immediately!
     if (profileError && profileError.code === 'PGRST116') {
       const { data: newProfile, error: insertError } = await supabase
         .from('profiles')
@@ -331,21 +327,24 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       throw new Error('Database Error: ' + profileError.message);
     }
 
-    // 4. Set local state and initialize app
     state.currentUser = { 
       id: authData.user.id, 
       username: email, 
-      name: profile.full_name, 
-      role: profile.role 
+      name: profile.full_name || email.split('@')[0], 
+      role: profile.role || 'admin' 
     };
     
     document.getElementById('loginPage').classList.add('hidden-page');
     document.getElementById('appShell').classList.remove('hidden-page');
     await initApp();
-    showToast(`Welcome back, ${profile.full_name.split(' ')[0]}!`, 'success');
+    showToast(`Welcome back, ${state.currentUser.name.split(' ')[0]}!`, 'success');
 
   } catch (err) {
     console.error("LOGIN FAILED:", err);
+    
+    // Ensure login page is visible again to show the error
+    document.getElementById('loginPage').classList.remove('hidden-page');
+    document.getElementById('appShell').classList.add('hidden-page');
     
     if (errorBox) {
       errorBox.innerText = "Login Failed: " + err.message;
@@ -362,12 +361,16 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 async function checkSession() {
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-    if (profile) {
-      state.currentUser = { id: session.user.id, username: session.user.email, name: profile.full_name, role: profile.role };
-      document.getElementById('loginPage').classList.add('hidden-page');
-      document.getElementById('appShell').classList.remove('hidden-page');
-      await initApp();
+    try {
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+      if (profile) {
+        state.currentUser = { id: session.user.id, username: session.user.email, name: profile.full_name, role: profile.role };
+        document.getElementById('loginPage').classList.add('hidden-page');
+        document.getElementById('appShell').classList.remove('hidden-page');
+        await initApp();
+      }
+    } catch (e) {
+      console.error("Session check error", e);
     }
   }
 }
@@ -381,22 +384,34 @@ async function logout() {
   showToast('Signed out successfully', 'info');
 }
 
-/* ===================== DATA FETCHING ===================== */
+/* ===================== DATA FETCHING (SAFE) ===================== */
 async function fetchAllData() {
-  const { data: teachers } = await supabase.from('profiles').select('*').in('role', ['teacher', 'academic', 'headteacher', 'admin']);
-  state.teachers = teachers || [];
+  // Wrapped in individual try/catch blocks so the app NEVER crashes if a table is missing or blocked by RLS
+  
+  try {
+    const { data: teachers } = await supabase.from('profiles').select('*').in('role', ['teacher', 'academic', 'headteacher', 'admin']);
+    state.teachers = teachers || [];
+  } catch (e) { console.warn("Teachers fetch failed:", e.message); state.teachers = []; }
 
-  const { data: students } = await supabase.from('students').select('*, classes(name)');
-  state.students = students || [];
+  try {
+    const { data: students } = await supabase.from('students').select('*, classes(name)');
+    state.students = students || [];
+  } catch (e) { console.warn("Students fetch failed:", e.message); state.students = []; }
 
-  const { data: classes } = await supabase.from('classes').select('*, profiles(full_name)');
-  state.classes = classes || [];
+  try {
+    const { data: classes } = await supabase.from('classes').select('*, profiles(full_name)');
+    state.classes = classes || [];
+  } catch (e) { console.warn("Classes fetch failed:", e.message); state.classes = []; }
 
-  const { data: subjects } = await supabase.from('subjects').select('*, profiles(full_name)');
-  state.subjects = subjects || [];
+  try {
+    const { data: subjects } = await supabase.from('subjects').select('*, profiles(full_name)');
+    state.subjects = subjects || [];
+  } catch (e) { console.warn("Subjects fetch failed:", e.message); state.subjects = []; }
 
-  const { data: notices } = await supabase.from('notices').select('*, profiles(full_name)').order('created_at', { ascending: false });
-  state.notices = notices || [];
+  try {
+    const { data: notices } = await supabase.from('notices').select('*, profiles(full_name)').order('created_at', { ascending: false });
+    state.notices = notices || [];
+  } catch (e) { console.warn("Notices fetch failed:", e.message); state.notices = []; }
 
   if (!state.timetable) generateTimetable();
 }
@@ -447,7 +462,7 @@ async function initApp() {
 }
 
 function buildNav() {
-  const menu = NAV_MENUS[state.currentUser.role] || [];
+  const menu = NAV_MENUS[state.currentUser.role] || NAV_MENUS['admin'];
   const host = document.getElementById('navMenu');
   host.innerHTML = menu.map(item => {
     if (item.section) return `<div class="nav-section">${item.section}</div>`;
@@ -458,7 +473,7 @@ function buildNav() {
 function navigateTo(page) {
   state.currentPage = page;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === page));
-  const menu = NAV_MENUS[state.currentUser.role] || [];
+  const menu = NAV_MENUS[state.currentUser.role] || NAV_MENUS['admin'];
   const item = menu.find(m => m.id === page);
   document.getElementById('pageTitle').textContent = item ? item.label : 'Dashboard';
   document.getElementById('pageBreadcrumb').textContent = `Home / ${item ? item.label : 'Dashboard'}`;
@@ -503,7 +518,6 @@ function renderDashboard() {
   let stats = [];
   let quickLinks = [];
   
-  // CUSTOMIZE DASHBOARD BASED ON ROLE
   if (u.role === 'admin') {
     stats = [
       { label: 'Total Teachers', value: state.teachers.length, icon: 'fa-chalkboard-user', color: 'emerald' },
@@ -557,7 +571,6 @@ function renderDashboard() {
       { page: 'reports', icon: 'fa-file-lines', color: 'purple', label: 'My Reports' }
     ];
   } else {
-    // Fallback if role is missing
     stats = [
       { label: 'Notices', value: state.notices.length, icon: 'fa-bullhorn', color: 'amber' },
       { label: 'Students', value: state.students.length, icon: 'fa-user-graduate', color: 'blue' }
@@ -569,10 +582,10 @@ function renderDashboard() {
   }
 
   const colorMap = { 
-    emerald: { bg: '#ECFDF5', fg: '#047857', br: 'emerald' }, 
-    blue: { bg: '#DBEAFE', fg: '#1E40AF', br: 'blue' }, 
-    amber: { bg: '#FEF3C7', fg: '#92400E', br: 'amber' }, 
-    purple: { bg: '#F3E8FF', fg: '#6B21A8', br: 'purple' } 
+    emerald: { bg: '#ECFDF5', fg: '#047857' }, 
+    blue: { bg: '#DBEAFE', fg: '#1E40AF' }, 
+    amber: { bg: '#FEF3C7', fg: '#92400E' }, 
+    purple: { bg: '#F3E8FF', fg: '#6B21A8' } 
   };
   
   const statsHtml = stats.map((s, i) => {
@@ -599,7 +612,7 @@ function renderDashboard() {
   
   const quickLinksHtml = quickLinks.map((q, i) => {
     const c = colorMap[q.color];
-    return `<button onclick="navigateTo('${q.page}')" class="p-4 rounded-xl border border-slate-200 hover:border-${c.br}-400 hover:bg-${c.br}-50 transition-all text-center">
+    return `<button onclick="navigateTo('${q.page}')" class="p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-all text-center">
       <i class="fa-solid ${q.icon} mb-2" style="color:${c.fg};"></i>
       <div class="font-semibold text-sm">${q.label}</div>
     </button>`;
@@ -633,36 +646,40 @@ async function renderTeachers() {
   const host = document.getElementById('pageContent');
   host.innerHTML = `<div class="card fade-up-1"><div class="section-title"><span><i class="fa-solid fa-spinner fa-spin text-emerald-600 mr-2"></i> Loading Teachers...</span></div></div>`;
   
-  const { data: teachers, error } = await supabase.from('profiles').select('*').in('role', ['teacher', 'academic', 'headteacher', 'admin']);
-  if (error) { host.innerHTML = `<div class="card"><p class="text-red-500">Error: ${error.message}</p></div>`; return; }
-  state.teachers = teachers;
+  try {
+    const { data: teachers, error } = await supabase.from('profiles').select('*').in('role', ['teacher', 'academic', 'headteacher', 'admin']);
+    if (error) throw error;
+    state.teachers = teachers || [];
 
-  host.innerHTML = `
-    <div class="card fade-up-1">
-      <div class="section-title">
-        <span><i class="fa-solid fa-chalkboard-user text-emerald-600 mr-2"></i> Teaching Staff</span>
-        <button class="btn-primary" onclick="showTeacherHelp()"><i class="fa-solid fa-plus mr-1"></i> Add Teacher</button>
+    host.innerHTML = `
+      <div class="card fade-up-1">
+        <div class="section-title">
+          <span><i class="fa-solid fa-chalkboard-user text-emerald-600 mr-2"></i> Teaching Staff</span>
+          <button class="btn-primary" onclick="showTeacherHelp()"><i class="fa-solid fa-plus mr-1"></i> Add Teacher</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="data-table">
+            <thead><tr><th>Teacher</th><th>Email</th><th>Role</th><th>Phone</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${state.teachers.map(t => {
+                const initials = t.full_name.split(' ').map(n=>n[0]).join('').slice(0,2);
+                const roleColors = { admin: 'purple', headteacher: 'amber', academic: 'blue', teacher: 'green' };
+                return `<tr>
+                  <td><div class="flex items-center gap-3"><div class="avatar" style="width:36px;height:36px;font-size:12px;background:linear-gradient(135deg,#047857,#10B981);">${initials}</div><div class="font-semibold text-slate-900">${t.full_name}</div></div></td>
+                  <td><span class="text-xs text-slate-600">${t.email || 'N/A'}</span></td>
+                  <td><span class="badge badge-${roleColors[t.role]} capitalize">${t.role}</span></td>
+                  <td><span class="text-xs text-slate-600">${t.phone || 'N/A'}</span></td>
+                  <td><button class="icon-btn" style="width:32px;height:32px;" onclick="deleteTeacher('${t.id}')"><i class="fa-solid fa-trash text-xs text-red-500"></i></button></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="overflow-x-auto">
-        <table class="data-table">
-          <thead><tr><th>Teacher</th><th>Email</th><th>Role</th><th>Phone</th><th>Actions</th></tr></thead>
-          <tbody>
-            ${teachers.map(t => {
-              const initials = t.full_name.split(' ').map(n=>n[0]).join('').slice(0,2);
-              const roleColors = { admin: 'purple', headteacher: 'amber', academic: 'blue', teacher: 'green' };
-              return `<tr>
-                <td><div class="flex items-center gap-3"><div class="avatar" style="width:36px;height:36px;font-size:12px;background:linear-gradient(135deg,#047857,#10B981);">${initials}</div><div class="font-semibold text-slate-900">${t.full_name}</div></div></td>
-                <td><span class="text-xs text-slate-600">${t.email || 'N/A'}</span></td>
-                <td><span class="badge badge-${roleColors[t.role]} capitalize">${t.role}</span></td>
-                <td><span class="text-xs text-slate-600">${t.phone || 'N/A'}</span></td>
-                <td><button class="icon-btn" style="width:32px;height:32px;" onclick="deleteTeacher('${t.id}')"><i class="fa-solid fa-trash text-xs text-red-500"></i></button></td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
+    `;
+  } catch (error) {
+    host.innerHTML = `<div class="card"><p class="text-red-500">Error loading teachers: ${error.message}</p></div>`;
+  }
 }
 
 function showTeacherHelp() {
