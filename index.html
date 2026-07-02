@@ -8,7 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
 :root {
   --primary: #047857; --primary-light: #10B981; --primary-dark: #065F46;
   --accent: #D97706; --accent-light: #F59E0B;
@@ -341,13 +342,81 @@ function saveState() {
   localStorage.setItem('korosho_db', JSON.stringify(state));
 }
 
-/* ===================== AUTH ===================== */
-const ACCOUNTS = {
-  admin: { password: '1234', name: 'Shadrack Mushi', role: 'admin' },
-  headteacher: { password: '1234', name: 'Mr. Kessy', role: 'headteacher' },
-  academic: { password: '1234', name: 'Grace Mwaipaja', role: 'academic' },
-  teacher: { password: '1234', name: 'Shadafi Joseph', role: 'teacher' }
-};
+/* ===================== INITIALIZE SUPABASE ===================== */
+const SUPABASE_URL = 'https://svlcwdxwnrrwoesjnklj.supabase.co'; // Replace with your URL
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2bGN3ZHh3bnJyd29lc2pua2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NTY1NjUsImV4cCI6MjA5ODUzMjU2NX0.5AawITGCbHFuZFGMOsLocgPL3IZoZRtKpcNOtRhcLtY'; // Replace with your Anon Key
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// 2. HANDLE LOGIN
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('loginUsername').value.trim(); // Now uses email
+  const password = document.getElementById('loginPassword').value;
+  
+  // Show loading state
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Signing In...';
+  submitBtn.disabled = true;
+
+  try {
+    // 1. Sign in with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (authError) throw new Error(authError.message);
+
+    // 2. Fetch the user's role from the 'profiles' table we created
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (profileError) throw new Error('Could not fetch user profile.');
+
+    // 3. Set local state and initialize app
+    state.currentUser = { 
+      username: email, 
+      name: profile.full_name, 
+      role: profile.role 
+    };
+    saveState();
+    
+    document.getElementById('loginPage').classList.add('hidden-page');
+    document.getElementById('appShell').classList.remove('hidden-page');
+    initApp();
+    showToast(`Welcome back, ${profile.full_name.split(' ')[0]}!`, 'success');
+
+  } catch (err) {
+    showToast(err.message || 'Invalid email or password', 'error');
+    submitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal';
+    submitBtn.disabled = false;
+  }
+});
+
+// 3. CHECK ACTIVE SESSION ON PAGE LOAD
+async function checkSession() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+    
+    if (profile) {
+      state.currentUser = { username: session.user.email, name: profile.full_name, role: profile.role };
+      document.getElementById('loginPage').classList.add('hidden-page');
+      document.getElementById('appShell').classList.remove('hidden-page');
+      initApp();
+    }
+  }
+}
+
+// Run session check when script loads
+checkSession();
 
 function quickLogin(u, p) {
   document.getElementById('loginUsername').value = u;
@@ -369,13 +438,15 @@ document.getElementById('loginForm').addEventListener('submit', (e) => {
   showToast(`Welcome back, ${acc.name.split(' ')[0]}!`, 'success');
 });
 
-function logout() {
-  state.currentUser = null; saveState();
+async function logout() {
+  await supabase.auth.signOut();
+  state.currentUser = null; 
+  saveState();
   document.getElementById('appShell').classList.add('hidden-page');
   document.getElementById('loginPage').classList.remove('hidden-page');
   document.getElementById('loginForm').reset();
   showToast('Signed out successfully', 'info');
-}
+  }
 
 /* ===================== NAVIGATION ===================== */
 const NAV_MENUS = {
@@ -541,8 +612,24 @@ function renderDashboard() {
 }
 
 /* ===================== TEACHERS ===================== */
-function renderTeachers() {
-  return `
+
+  async function renderTeachers() {
+  const host = document.getElementById('pageContent');
+  host.innerHTML = `<div class="card fade-up-1"><div class="section-title"><span><i class="fa-solid fa-spinner fa-spin text-emerald-600 mr-2"></i> Loading Teachers...</span></div></div>`;
+
+  // FETCH FROM SUPABASE
+  const { data: teachers, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .in('role', ['teacher', 'academic', 'headteacher', 'admin']);
+
+  if (error) {
+    host.innerHTML = `<div class="card"><p class="text-red-500">Error loading teachers: ${error.message}</p></div>`;
+    return;
+  }
+
+  // RENDER THE DATA
+  host.innerHTML = `
     <div class="card fade-up-1">
       <div class="section-title">
         <span><i class="fa-solid fa-chalkboard-user text-emerald-600 mr-2"></i> Teaching Staff</span>
@@ -550,19 +637,17 @@ function renderTeachers() {
       </div>
       <div class="overflow-x-auto">
         <table class="data-table">
-          <thead><tr><th>Teacher</th><th>Role</th><th>Subjects</th><th>Class Teacher</th><th>Contact</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Teacher</th><th>Role</th><th>Phone</th><th>Actions</th></tr></thead>
           <tbody>
-            ${state.teachers.map(t => {
-              const initials = t.name.split(' ').map(n=>n[0]).join('').slice(0,2);
+            ${teachers.map(t => {
+              const initials = t.full_name.split(' ').map(n=>n[0]).join('').slice(0,2);
               const roleColors = { admin: 'purple', headteacher: 'amber', academic: 'blue', teacher: 'green' };
               return `<tr>
-                <td><div class="flex items-center gap-3"><div class="avatar" style="width:36px;height:36px;font-size:12px;background:linear-gradient(135deg,#047857,#10B981);">${initials}</div><div><div class="font-semibold text-slate-900">${t.name}</div><div class="text-xs text-slate-500">${t.email}</div></div></div></td>
+                <td><div class="flex items-center gap-3"><div class="avatar" style="width:36px;height:36px;font-size:12px;background:linear-gradient(135deg,#047857,#10B981);">${initials}</div><div class="font-semibold text-slate-900">${t.full_name}</div></div></td>
                 <td><span class="badge badge-${roleColors[t.role]} capitalize">${t.role}</span></td>
-                <td>${t.subjects.map(s=>`<span class="badge badge-gray mr-1 mb-1">${s}</span>`).join('')}</td>
-                <td>${t.classTeacher==='-'?'<span class="text-slate-400">—</span>':`<span class="font-semibold">${t.classTeacher}</span>`}</td>
-                <td><span class="text-xs text-slate-600">${t.phone}</span></td>
+                <td><span class="text-xs text-slate-600">${t.phone || 'N/A'}</span></td>
                 <td>
-                  <button class="icon-btn" style="width:32px;height:32px;" onclick="deleteTeacher(${t.id})"><i class="fa-solid fa-trash text-xs text-red-500"></i></button>
+                  <button class="icon-btn" style="width:32px;height:32px;" onclick="deleteTeacher('${t.id}')"><i class="fa-solid fa-trash text-xs text-red-500"></i></button>
                 </td>
               </tr>`;
             }).join('')}
@@ -571,7 +656,8 @@ function renderTeachers() {
       </div>
     </div>
   `;
-}
+  }
+  
 function deleteTeacher(id) {
   openConfirmModal('Delete Teacher', 'Are you sure you want to remove this teacher?', () => {
     state.teachers = state.teachers.filter(t => t.id !== id);
